@@ -14,10 +14,12 @@ namespace EAMS.Api.Controllers;
 public class UsersController : BaseController
 {
     private readonly IUserService _userService;
+    private readonly IImportExportService _importExportService;
 
-    public UsersController(IUserService userService)
+    public UsersController(IUserService userService, IImportExportService importExportService)
     {
         _userService = userService;
+        _importExportService = importExportService;
     }
 
     /// <summary>
@@ -100,5 +102,80 @@ public class UsersController : BaseController
     {
         var roles = await _userService.GetUserRolesAsync(id);
         return Success(roles);
+    }
+
+    /// <summary>
+    /// 导出用户
+    /// </summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportUsers([FromQuery] UserQueryRequestDto query)
+    {
+        var result = await _userService.GetUsersAsync(query);
+        var exportData = result.Items.Select(u => new UserExportDto
+        {
+            Id = u.Id,
+            Username = u.Username,
+            RealName = u.RealName,
+            Email = u.Email,
+            Phone = u.Phone,
+            Status = u.Status,
+            CreatedAt = u.CreatedAt
+        });
+
+        var bytes = await _importExportService.ExportToExcelAsync(exportData, "用户列表");
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"用户列表_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+    }
+
+    /// <summary>
+    /// 导入用户
+    /// </summary>
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportUsers(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return Error("请选择要导入的文件");
+
+        using var stream = file.OpenReadStream();
+        var rows = await _importExportService.ImportFromExcelAsync<UserImportDto>(stream);
+
+        var successCount = 0;
+        var errors = new List<string>();
+
+        foreach (var (row, index) in rows.Select((r, i) => (r, i + 2)))
+        {
+            try
+            {
+                var status = row.StatusText?.Trim() == "启用" ? 1 : 0;
+                await _userService.CreateUserAsync(new CreateUserRequestDto
+                {
+                    Username = row.Username,
+                    Password = "123456", // 默认密码
+                    RealName = row.RealName,
+                    Email = row.Email,
+                    Phone = row.Phone
+                });
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"第{index}行: {ex.Message}");
+            }
+        }
+
+        return Success(new { successCount, errorCount = errors.Count, errors }, $"导入完成，成功{successCount}条，默认密码: 123456");
+    }
+
+    /// <summary>
+    /// 下载导入模板
+    /// </summary>
+    [HttpGet("template")]
+    public IActionResult DownloadTemplate()
+    {
+        var template = new List<UserImportDto>
+        {
+            new UserImportDto { Username = "zhangsan", RealName = "张三", Email = "zhangsan@example.com", Phone = "13800138000", StatusText = "启用" }
+        };
+        var bytes = _importExportService.ExportToExcelAsync(template, "用户导入模板").Result;
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "用户导入模板.xlsx");
     }
 }

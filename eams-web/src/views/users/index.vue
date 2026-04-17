@@ -26,9 +26,27 @@
       <template #header>
         <div class="table-header">
           <span>用户列表</span>
-          <el-button type="primary" @click="handleAdd">
-            <el-icon><Plus /></el-icon>新增用户
-          </el-button>
+          <div class="header-buttons">
+            <el-button type="primary" @click="handleAdd">
+              <el-icon><Plus /></el-icon>新增用户
+            </el-button>
+            <el-button type="success" @click="handleExport">
+              <el-icon><Download /></el-icon>导出
+            </el-button>
+            <el-upload
+              :show-file-list="false"
+              :before-upload="() => false"
+              :on-change="handleImport"
+              accept=".xlsx,.xls"
+            >
+              <el-button type="warning" :loading="importLoading">
+                <el-icon><Upload /></el-icon>导入
+              </el-button>
+            </el-upload>
+            <el-button @click="handleDownloadTemplate">
+              <el-icon><Download /></el-icon>下载模板
+            </el-button>
+          </div>
         </div>
       </template>
 
@@ -46,7 +64,9 @@
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" min-width="160" />
+        <el-table-column prop="createdAt" label="创建时间" width="170">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
@@ -128,8 +148,11 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Search, Plus, Edit, Delete, Download, Upload } from '@element-plus/icons-vue'
 import { userApi, type User, type UserQuery, type CreateUserRequest } from '@/api/user'
-import type { FormInstance, FormRules } from 'element-plus'
+import { exportToExcel, importFromExcel, downloadTemplate } from '@/api/excel'
+import type { FormInstance, FormRules, UploadFile } from 'element-plus'
+import { formatDateTime } from '@/utils/format'
 
 // 查询条件
 const queryForm = reactive<UserQuery>({
@@ -310,6 +333,31 @@ const handleSaveRoles = async () => {
   }
 }
 
+// 导出
+const handleExport = () => {
+  exportToExcel('/users/export', '用户列表')
+}
+
+// 导入
+const importLoading = ref(false)
+const handleImport = async (options: { file: UploadFile }) => {
+  importLoading.value = true
+  try {
+    const result = await importFromExcel('/users/import', options.file)
+    ElMessage.success(`导入完成，成功 ${result.successCount} 条，默认密码: 123456`)
+    loadData()
+  } catch (error: any) {
+    ElMessage.error(error || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 下载模板
+const handleDownloadTemplate = () => {
+  downloadTemplate('/users/template', '用户导入模板')
+}
+
 onMounted(() => {
   loadData()
 })
@@ -328,6 +376,11 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 10px;
 }
 
 .pagination {

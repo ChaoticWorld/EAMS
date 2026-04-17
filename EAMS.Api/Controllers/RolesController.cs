@@ -14,10 +14,12 @@ namespace EAMS.Api.Controllers;
 public class RolesController : BaseController
 {
     private readonly IRoleService _roleService;
+    private readonly IImportExportService _importExportService;
 
-    public RolesController(IRoleService roleService)
+    public RolesController(IRoleService roleService, IImportExportService importExportService)
     {
         _roleService = roleService;
+        _importExportService = importExportService;
     }
 
     /// <summary>
@@ -100,5 +102,80 @@ public class RolesController : BaseController
     {
         var permissions = await _roleService.GetRolePermissionsAsync(id);
         return Success(permissions);
+    }
+
+    /// <summary>
+    /// 导出角色
+    /// </summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportRoles([FromQuery] RoleQueryRequestDto query)
+    {
+        var result = await _roleService.GetRolesAsync(query);
+        var exportData = result.Items.Select(r => new RoleExportDto
+        {
+            Id = r.Id,
+            RoleName = r.RoleName,
+            RoleCode = r.RoleCode,
+            Description = r.Description,
+            Status = r.Status,
+            SortOrder = r.SortOrder,
+            CreatedAt = r.CreatedAt
+        });
+
+        var bytes = await _importExportService.ExportToExcelAsync(exportData, "角色列表");
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"角色列表_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+    }
+
+    /// <summary>
+    /// 导入角色
+    /// </summary>
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportRoles(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return Error("请选择要导入的文件");
+
+        using var stream = file.OpenReadStream();
+        var rows = await _importExportService.ImportFromExcelAsync<RoleImportDto>(stream);
+
+        var successCount = 0;
+        var errors = new List<string>();
+
+        foreach (var (row, index) in rows.Select((r, i) => (r, i + 2)))
+        {
+            try
+            {
+                var status = row.StatusText?.Trim() == "启用" ? 1 : 0;
+                await _roleService.CreateRoleAsync(new CreateRoleRequestDto
+                {
+                    RoleName = row.RoleName,
+                    RoleCode = row.RoleCode,
+                    Description = row.Description,
+                    Status = status,
+                    SortOrder = row.SortOrder
+                });
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"第{index}行: {ex.Message}");
+            }
+        }
+
+        return Success(new { successCount, errorCount = errors.Count, errors }, $"导入完成，成功{successCount}条");
+    }
+
+    /// <summary>
+    /// 下载导入模板
+    /// </summary>
+    [HttpGet("template")]
+    public IActionResult DownloadTemplate()
+    {
+        var template = new List<RoleImportDto>
+        {
+            new RoleImportDto { RoleName = "示例角色", RoleCode = "example", Description = "这是一个示例", StatusText = "启用", SortOrder = 1 }
+        };
+        var bytes = _importExportService.ExportToExcelAsync(template, "角色导入模板").Result;
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "角色导入模板.xlsx");
     }
 }

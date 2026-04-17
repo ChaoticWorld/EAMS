@@ -37,6 +37,21 @@
             <span>权限管理</span>
           </el-menu-item>
         </el-sub-menu>
+
+        <el-sub-menu index="/org">
+          <template #title>
+            <el-icon><OfficeBuilding /></el-icon>
+            <span>组织管理</span>
+          </template>
+          <el-menu-item index="/departments">
+            <el-icon><School /></el-icon>
+            <span>部门管理</span>
+          </el-menu-item>
+          <el-menu-item index="/employees">
+            <el-icon><Avatar /></el-icon>
+            <span>员工管理</span>
+          </el-menu-item>
+        </el-sub-menu>
       </el-menu>
     </el-aside>
 
@@ -132,7 +147,7 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Bell, Loading, StarFilled, BellFilled, ArrowDown, HomeFilled, Setting, User, UserFilled, Key, Message as MessageIcon, Management } from '@element-plus/icons-vue'
+import { Bell, Loading, StarFilled, BellFilled, ArrowDown, HomeFilled, Setting, User, UserFilled, Key, Message as MessageIcon, Management, OfficeBuilding, School, Avatar } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { messageApi, type Message } from '@/api/message'
 

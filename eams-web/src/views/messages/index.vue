@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Delete, View, Check } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { Plus, Search, Refresh, Delete, View, Check, Download, Upload } from '@element-plus/icons-vue'
+import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { messageApi, type Message, type SendMessageRequest } from '@/api/message'
+import { exportToExcel, importFromExcel, downloadTemplate } from '@/api/excel'
+import { formatDateTime } from '@/utils/format'
 
 // 搜索条件
 const searchForm = ref({
@@ -240,6 +242,31 @@ const handleCurrentChange = (val: number) => {
   loadData()
 }
 
+// 导出
+const handleExport = () => {
+  exportToExcel('/messages/export', '消息列表')
+}
+
+// 导入
+const importLoading = ref(false)
+const handleImport = async (options: { file: UploadFile }) => {
+  importLoading.value = true
+  try {
+    const result = await importFromExcel('/messages/import', options.file)
+    ElMessage.success(`导入完成，发送成功 ${result.successCount} 条`)
+    loadData()
+  } catch (error: any) {
+    ElMessage.error(error || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 下载模板
+const handleDownloadTemplate = () => {
+  downloadTemplate('/messages/template', '消息导入模板')
+}
+
 onMounted(() => {
   loadData()
 })
@@ -284,6 +311,16 @@ onMounted(() => {
           <div class="header-actions">
             <el-button v-if="unreadCount > 0" type="success" :icon="Check" @click="handleMarkAllRead">全部已读</el-button>
             <el-button type="primary" :icon="Plus" @click="handleAdd">发送消息</el-button>
+            <el-button type="success" :icon="Download" @click="handleExport">导出</el-button>
+            <el-upload
+              :show-file-list="false"
+              :before-upload="() => false"
+              :on-change="handleImport"
+              accept=".xlsx,.xls"
+            >
+              <el-button type="warning" :icon="Upload" :loading="importLoading">导入</el-button>
+            </el-upload>
+            <el-button :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
           </div>
         </div>
       </template>
@@ -322,9 +359,9 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="发送时间" width="180">
+        <el-table-column prop="createdAt" label="发送时间" width="170">
           <template #default="{ row }">
-            {{ new Date(row.createdAt).toLocaleString() }}
+            {{ formatDateTime(row.createdAt) }}
           </template>
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
@@ -405,11 +442,11 @@ onMounted(() => {
         </div>
         <div class="detail-item">
           <span class="label">发送时间：</span>
-          <span class="value">{{ new Date(currentMessage.createdAt).toLocaleString() }}</span>
+          <span class="value">{{ formatDateTime(currentMessage.createdAt) }}</span>
         </div>
         <div class="detail-item">
           <span class="label">阅读时间：</span>
-          <span class="value">{{ currentMessage.readAt ? new Date(currentMessage.readAt).toLocaleString() : '-' }}</span>
+          <span class="value">{{ currentMessage.readAt ? formatDateTime(currentMessage.readAt) : '-' }}</span>
         </div>
         <div class="detail-item">
           <span class="label">消息内容：</span>

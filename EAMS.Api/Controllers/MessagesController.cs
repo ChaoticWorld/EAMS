@@ -14,10 +14,12 @@ namespace EAMS.Api.Controllers;
 public class MessagesController : BaseController
 {
     private readonly IMessageService _messageService;
+    private readonly IImportExportService _importExportService;
 
-    public MessagesController(IMessageService messageService)
+    public MessagesController(IMessageService messageService, IImportExportService importExportService)
     {
         _messageService = messageService;
+        _importExportService = importExportService;
     }
 
     /// <summary>
@@ -88,5 +90,91 @@ public class MessagesController : BaseController
     {
         await _messageService.DeleteMessageAsync(id, CurrentUserId);
         return Success<object>(null, "删除成功");
+    }
+
+    /// <summary>
+    /// 导出消息（管理员）
+    /// </summary>
+    [HttpGet("export")]
+    public async Task<IActionResult> ExportMessages([FromQuery] MessageQueryRequestDto query)
+    {
+        var result = await _messageService.GetUserMessagesAsync(CurrentUserId, query);
+        var exportData = result.Items.Select(m => new MessageExportDto
+        {
+            Id = m.Id,
+            Title = m.Title,
+            Content = m.Content,
+            Type = m.MessageType?.Trim() switch
+            {
+                "system" => 1,
+                "todo" => 2,
+                "approval" => 3,
+                _ => 0
+            },
+            ReceiverId = m.ReceiverId,
+            IsRead = m.IsRead,
+            CreatedAt = m.CreatedAt
+        });
+
+        var bytes = await _importExportService.ExportToExcelAsync(exportData, "消息列表");
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"消息列表_{DateTime.Now:yyyyMMddHHmmss}.xlsx");
+    }
+
+    /// <summary>
+    /// 批量导入发送消息
+    /// </summary>
+    [HttpPost("import")]
+    public async Task<IActionResult> ImportMessages(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return Error("请选择要导入的文件");
+
+        using var stream = file.OpenReadStream();
+        var rows = await _importExportService.ImportFromExcelAsync<MessageImportDto>(stream);
+
+        var successCount = 0;
+        var errors = new List<string>();
+
+        foreach (var (row, index) in rows.Select((r, i) => (r, i + 2)))
+        {
+            try
+            {
+                var type = row.TypeText?.Trim() switch
+                {
+                    "系统通知" => "system",
+                    "待办提醒" => "todo",
+                    "审批通知" => "approval",
+                    _ => "user"
+                };
+                await _messageService.SendMessageAsync(new SendMessageRequestDto
+                {
+                    Title = row.Title,
+                    Content = row.Content,
+                    MessageType = type,
+                    ReceiverId = row.ReceiverId
+                });
+                successCount++;
+            }
+            catch (Exception ex)
+            {
+                errors.Add($"第{index}行: {ex.Message}");
+            }
+        }
+
+        return Success(new { successCount, errorCount = errors.Count, errors }, $"导入完成，发送成功{successCount}条");
+    }
+
+    /// <summary>
+    /// 下载导入模板
+    /// </summary>
+    [HttpGet("template")]
+    public IActionResult DownloadTemplate()
+    {
+        var template = new List<MessageImportDto>
+        {
+            new MessageImportDto { Title = "示例消息标题", Content = "消息内容", TypeText = "系统通知", ReceiverId = 1 }
+        };
+        var bytes = _importExportService.ExportToExcelAsync(template, "消息导入模板").Result;
+        return File(bytes, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "消息导入模板.xlsx");
     }
 }

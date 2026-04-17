@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search, Refresh, Edit, Delete, Download, Upload } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules, UploadFile } from 'element-plus'
-import { roleApi, type Role, type CreateRoleRequest } from '@/api/role'
+import { departmentApi, type Department, type DepartmentTree, type CreateDepartmentRequest } from '@/api/department'
 import { exportToExcel, importFromExcel, downloadTemplate } from '@/api/excel'
 import { formatDateTime } from '@/utils/format'
 
@@ -15,70 +15,60 @@ const searchForm = ref({
 
 // 表格数据
 const loading = ref(false)
-const roleList = ref<Role[]>([])
+const departmentList = ref<Department[]>([])
 const currentPage = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 
+// 部门树（用于选择父部门）
+const departmentTree = ref<DepartmentTree[]>([])
+
 // 对话框
 const dialogVisible = ref(false)
-const dialogTitle = ref('新增角色')
+const dialogTitle = ref('新增部门')
 const formRef = ref<FormInstance>()
-const form = ref<CreateRoleRequest>({
-  roleName: '',
-  roleCode: '',
+const form = ref<CreateDepartmentRequest & { id?: number }>({
+  deptName: '',
+  deptCode: '',
+  parentId: undefined,
   description: '',
   status: 1,
-  sortOrder: 0
+  sortOrder: 0,
+  leader: '',
+  phone: '',
+  email: ''
 })
 const editingId = ref<number | null>(null)
 
 const rules: FormRules = {
-  roleName: [{ required: true, message: '请输入角色名称', trigger: 'blur' }],
-  roleCode: [{ required: true, message: '请输入角色编码', trigger: 'blur' }]
+  deptName: [{ required: true, message: '请输入部门名称', trigger: 'blur' }]
 }
-
-// 权限对话框
-const permissionDialogVisible = ref(false)
-const currentRoleId = ref<number>(0)
-const permissionTreeRef = ref()
-const permissionTreeData = ref([
-  {
-    id: 1,
-    label: '系统管理',
-    children: [
-      { id: 11, label: '用户管理' },
-      { id: 12, label: '角色管理' },
-      { id: 13, label: '权限管理' },
-      { id: 14, label: '消息管理' }
-    ]
-  },
-  {
-    id: 2,
-    label: '资产管理',
-    children: [
-      { id: 21, label: '资产列表' },
-      { id: 22, label: '资产分类' }
-    ]
-  }
-])
 
 // 加载数据
 const loadData = async () => {
   loading.value = true
   try {
-    const res = await roleApi.getRoles({
+    const res = await departmentApi.getDepartments({
       pageIndex: currentPage.value,
       pageSize: pageSize.value,
       keyword: searchForm.value.keyword || undefined,
       status: searchForm.value.status
     })
-    roleList.value = res.items
+    departmentList.value = res.items
     total.value = res.total
   } catch (error: any) {
     ElMessage.error(error || '加载失败')
   } finally {
     loading.value = false
+  }
+}
+
+// 加载部门树
+const loadDepartmentTree = async () => {
+  try {
+    departmentTree.value = await departmentApi.getDepartmentTree()
+  } catch (error: any) {
+    console.error('加载部门树失败', error)
   }
 }
 
@@ -96,41 +86,50 @@ const handleReset = () => {
 
 // 新增
 const handleAdd = () => {
-  dialogTitle.value = '新增角色'
+  dialogTitle.value = '新增部门'
   editingId.value = null
   form.value = {
-    roleName: '',
-    roleCode: '',
+    deptName: '',
+    deptCode: '',
+    parentId: undefined,
     description: '',
     status: 1,
-    sortOrder: 0
+    sortOrder: 0,
+    leader: '',
+    phone: '',
+    email: ''
   }
   dialogVisible.value = true
 }
 
 // 编辑
-const handleEdit = (row: Role) => {
-  dialogTitle.value = '编辑角色'
+const handleEdit = (row: Department) => {
+  dialogTitle.value = '编辑部门'
   editingId.value = row.id
   form.value = {
-    roleName: row.roleName,
-    roleCode: row.roleCode,
+    deptName: row.deptName,
+    deptCode: row.deptCode,
+    parentId: row.parentId ?? undefined,
     description: row.description,
     status: row.status,
-    sortOrder: row.sortOrder
+    sortOrder: row.sortOrder,
+    leader: row.leader,
+    phone: row.phone,
+    email: row.email
   }
   dialogVisible.value = true
 }
 
 // 删除
-const handleDelete = async (row: Role) => {
+const handleDelete = async (row: Department) => {
   try {
-    await ElMessageBox.confirm(`确定删除角色 "${row.roleName}" 吗？`, '提示', {
+    await ElMessageBox.confirm(`确定删除部门 "${row.deptName}" 吗？`, '提示', {
       type: 'warning'
     })
-    await roleApi.deleteRole(row.id)
+    await departmentApi.deleteDepartment(row.id)
     ElMessage.success('删除成功')
     loadData()
+    loadDepartmentTree()
   } catch (error: any) {
     if (error !== 'cancel') {
       ElMessage.error(error || '删除失败')
@@ -145,70 +144,29 @@ const handleSave = async () => {
     await formRef.value.validate()
     if (editingId.value) {
       // 编辑
-      await roleApi.updateRole(editingId.value, {
-        roleName: form.value.roleName,
+      await departmentApi.updateDepartment(editingId.value, {
+        deptName: form.value.deptName,
+        deptCode: form.value.deptCode,
+        parentId: form.value.parentId,
         description: form.value.description,
         status: form.value.status,
-        sortOrder: form.value.sortOrder
+        sortOrder: form.value.sortOrder,
+        leader: form.value.leader,
+        phone: form.value.phone,
+        email: form.value.email
       })
       ElMessage.success('更新成功')
     } else {
       // 新增
-      await roleApi.createRole(form.value)
+      await departmentApi.createDepartment(form.value)
       ElMessage.success('创建成功')
     }
     dialogVisible.value = false
     loadData()
+    loadDepartmentTree()
   } catch (error: any) {
     ElMessage.error(error || '保存失败')
   }
-}
-
-// 分配权限
-const handlePermission = (row: Role) => {
-  currentRoleId.value = row.id
-  permissionDialogVisible.value = true
-  // TODO: 加载该角色的权限
-}
-
-// 保存权限
-const handleSavePermission = async () => {
-  try {
-    const checkedKeys = permissionTreeRef.value?.getCheckedKeys() || []
-    await roleApi.assignPermissions(currentRoleId.value, checkedKeys)
-    ElMessage.success('权限分配成功')
-    permissionDialogVisible.value = false
-  } catch (error: any) {
-    ElMessage.error(error || '权限分配失败')
-  }
-}
-
-// 导出
-const handleExport = () => {
-  exportToExcel('/roles/export', '角色列表')
-}
-
-// 导入
-const importLoading = ref(false)
-const handleImport = async (options: { file: UploadFile }) => {
-  importLoading.value = true
-  try {
-    const result = await importFromExcel('/roles/import', options.file)
-    ElMessage.success(`导入完成，成功 ${result.successCount} 条`)
-    if (result.errorCount > 0) {
-      console.warn('导入错误:', result.errors)
-    }
-    loadData()
-  } catch (error: any) {
-    ElMessage.error(error || '导入失败')
-  } finally {
-    importLoading.value = false
-  }
-}
-
-// 下载模板
-const handleDownloadTemplate = () => {
-  downloadTemplate('/roles/template', '角色导入模板')
 }
 
 // 分页
@@ -222,18 +180,45 @@ const handleCurrentChange = (val: number) => {
   loadData()
 }
 
+// 导出
+const handleExport = () => {
+  exportToExcel('/departments/export', '部门列表')
+}
+
+// 导入
+const importLoading = ref(false)
+const handleImport = async (options: { file: UploadFile }) => {
+  importLoading.value = true
+  try {
+    const result = await importFromExcel('/departments/import', options.file)
+    ElMessage.success(`导入完成，成功 ${result.successCount} 条`)
+    loadData()
+    loadDepartmentTree()
+  } catch (error: any) {
+    ElMessage.error(error || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 下载模板
+const handleDownloadTemplate = () => {
+  downloadTemplate('/departments/template', '部门导入模板')
+}
+
 onMounted(() => {
   loadData()
+  loadDepartmentTree()
 })
 </script>
 
 <template>
-  <div class="role-management">
+  <div class="department-management">
     <!-- 搜索栏 -->
     <el-card class="search-card" shadow="never">
       <el-form :model="searchForm" inline>
-        <el-form-item label="角色名称">
-          <el-input v-model="searchForm.keyword" placeholder="请输入角色名称" clearable />
+        <el-form-item label="部门名称">
+          <el-input v-model="searchForm.keyword" placeholder="请输入部门名称" clearable />
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="searchForm.status" placeholder="请选择状态" clearable style="width: 120px">
@@ -252,9 +237,9 @@ onMounted(() => {
     <el-card class="table-card" shadow="never">
       <template #header>
         <div class="card-header">
-          <span>角色列表</span>
+          <span>部门列表</span>
           <div class="header-buttons">
-            <el-button type="primary" :icon="Plus" @click="handleAdd">新增角色</el-button>
+            <el-button type="primary" :icon="Plus" @click="handleAdd">新增部门</el-button>
             <el-button type="success" :icon="Download" @click="handleExport">导出</el-button>
             <el-upload
               :show-file-list="false"
@@ -270,11 +255,14 @@ onMounted(() => {
       </template>
 
       <!-- 表格 -->
-      <el-table v-loading="loading" :data="roleList" border stripe>
+      <el-table v-loading="loading" :data="departmentList" border stripe>
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="roleName" label="角色名称" min-width="120" />
-        <el-table-column prop="roleCode" label="角色编码" min-width="120" />
-        <el-table-column prop="description" label="描述" min-width="180" show-overflow-tooltip />
+        <el-table-column prop="deptName" label="部门名称" min-width="150" />
+        <el-table-column prop="deptCode" label="部门编码" width="120" />
+        <el-table-column prop="parentName" label="上级部门" width="120" />
+        <el-table-column prop="leader" label="负责人" width="100" />
+        <el-table-column prop="phone" label="联系电话" width="130" />
+        <el-table-column prop="employeeCount" label="员工数" width="80" align="center" />
         <el-table-column prop="sortOrder" label="排序" width="80" align="center" />
         <el-table-column prop="status" label="状态" width="100" align="center">
           <template #default="{ row }">
@@ -286,10 +274,9 @@ onMounted(() => {
         <el-table-column prop="createdAt" label="创建时间" width="170">
           <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column label="操作" width="180" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="warning" link @click="handlePermission(row)">权限</el-button>
             <el-button type="danger" link :icon="Delete" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
@@ -309,16 +296,33 @@ onMounted(() => {
     </el-card>
 
     <!-- 新增/编辑对话框 -->
-    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="500px">
+    <el-dialog v-model="dialogVisible" :title="dialogTitle" width="550px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="角色名称" prop="roleName">
-          <el-input v-model="form.roleName" placeholder="请输入角色名称" />
+        <el-form-item label="部门名称" prop="deptName">
+          <el-input v-model="form.deptName" placeholder="请输入部门名称" />
         </el-form-item>
-        <el-form-item label="角色编码" prop="roleCode">
-          <el-input v-model="form.roleCode" placeholder="请输入角色编码" :disabled="!!editingId" />
+        <el-form-item label="部门编码">
+          <el-input v-model="form.deptCode" placeholder="请输入部门编码" />
         </el-form-item>
-        <el-form-item label="描述">
-          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        <el-form-item label="上级部门">
+          <el-tree-select
+            v-model="form.parentId"
+            :data="departmentTree"
+            :props="{ label: 'deptName', value: 'id', children: 'children' }"
+            placeholder="请选择上级部门"
+            clearable
+            check-strictly
+            style="width: 100%"
+          />
+        </el-form-item>
+        <el-form-item label="负责人">
+          <el-input v-model="form.leader" placeholder="请输入负责人" />
+        </el-form-item>
+        <el-form-item label="联系电话">
+          <el-input v-model="form.phone" placeholder="请输入联系电话" />
+        </el-form-item>
+        <el-form-item label="邮箱">
+          <el-input v-model="form.email" placeholder="请输入邮箱" />
         </el-form-item>
         <el-form-item label="排序">
           <el-input-number v-model="form.sortOrder" :min="0" />
@@ -329,32 +333,20 @@ onMounted(() => {
             <el-radio :label="0">禁用</el-radio>
           </el-radio-group>
         </el-form-item>
+        <el-form-item label="描述">
+          <el-input v-model="form.description" type="textarea" :rows="3" placeholder="请输入描述" />
+        </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="handleSave">确定</el-button>
       </template>
     </el-dialog>
-
-    <!-- 权限分配对话框 -->
-    <el-dialog v-model="permissionDialogVisible" title="分配权限" width="400px">
-      <el-tree
-        ref="permissionTreeRef"
-        :data="permissionTreeData"
-        show-checkbox
-        default-expand-all
-        node-key="id"
-      />
-      <template #footer>
-        <el-button @click="permissionDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSavePermission">确定</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <style scoped>
-.role-management {
+.department-management {
   padding: 20px;
 }
 

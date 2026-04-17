@@ -19,6 +19,8 @@ public class EAMSDbContext : DbContext
     public DbSet<SysOperationLog> SysOperationLogs { get; set; } = null!;
     public DbSet<SysDataDictionary> SysDataDictionaries { get; set; } = null!;
     public DbSet<SysDataDictionaryItem> SysDataDictionaryItems { get; set; } = null!;
+    public DbSet<SysDepartment> SysDepartments { get; set; } = null!;
+    public DbSet<SysEmployee> SysEmployees { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -111,6 +113,32 @@ public class EAMSDbContext : DbContext
         modelBuilder.Entity<SysDataDictionaryItem>(entity =>
         {
             entity.HasIndex(e => new { e.DictId, e.ItemValue }).IsUnique();
+        });
+
+        // SysDepartment
+        modelBuilder.Entity<SysDepartment>(entity =>
+        {
+            entity.HasIndex(e => e.DeptCode).IsUnique();
+            entity.HasIndex(e => e.ParentId);
+            entity.HasIndex(e => e.IsDeleted);
+            
+            entity.HasOne(d => d.Parent)
+                  .WithMany(d => d.Children)
+                  .HasForeignKey(d => d.ParentId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // SysEmployee
+        modelBuilder.Entity<SysEmployee>(entity =>
+        {
+            entity.HasIndex(e => e.EmployeeNo).IsUnique();
+            entity.HasIndex(e => e.DeptId);
+            entity.HasIndex(e => e.IsDeleted);
+            
+            entity.HasOne(e => e.Department)
+                  .WithMany(d => d.Employees)
+                  .HasForeignKey(e => e.DeptId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
     

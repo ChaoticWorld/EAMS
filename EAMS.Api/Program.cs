@@ -52,15 +52,29 @@ builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
-// Add CORS
+// Add CORS - 支持局域网访问
+var allowAnyOrigin = builder.Configuration.GetValue<bool>("Cors:AllowAnyOrigin", true);
+var corsOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>();
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowFrontend", policy =>
     {
-        policy.WithOrigins("http://localhost:5173", "http://127.0.0.1:5173")
-              .AllowAnyHeader()
-              .AllowAnyMethod()
-              .AllowCredentials();
+        if (allowAnyOrigin)
+        {
+            // 局域网环境：允许任何来源
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else if (corsOrigins != null && corsOrigins.Length > 0)
+        {
+            // 生产环境：仅允许配置的来源
+            policy.WithOrigins(corsOrigins)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod()
+                  .AllowCredentials();
+        }
     });
 });
 

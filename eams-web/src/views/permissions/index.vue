@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Search, Refresh, Edit, Delete } from '@element-plus/icons-vue'
-import type { FormInstance, FormRules } from 'element-plus'
+import { Plus, Search, Refresh, Edit, Delete, Download, Upload } from '@element-plus/icons-vue'
+import type { FormInstance, FormRules, UploadFile } from 'element-plus'
 import { permissionApi, type Permission, type PermissionTree, type CreatePermissionRequest, type UpdatePermissionRequest } from '@/api/permission'
+import { exportToExcel, importFromExcel, downloadTemplate } from '@/api/excel'
+import { formatDateTime } from '@/utils/format'
 
 // 搜索条件
 const searchForm = ref({
@@ -205,6 +207,31 @@ const getTypeTagType = (type: string) => {
   return map[type] || 'info'
 }
 
+// 导出
+const handleExport = () => {
+  exportToExcel('/permissions/export', '权限列表')
+}
+
+// 导入
+const importLoading = ref(false)
+const handleImport = async (options: { file: UploadFile }) => {
+  importLoading.value = true
+  try {
+    const result = await importFromExcel('/permissions/import', options.file)
+    ElMessage.success(`导入完成，成功 ${result.successCount} 条`)
+    loadData()
+  } catch (error: any) {
+    ElMessage.error(error || '导入失败')
+  } finally {
+    importLoading.value = false
+  }
+}
+
+// 下载模板
+const handleDownloadTemplate = () => {
+  downloadTemplate('/permissions/template', '权限导入模板')
+}
+
 onMounted(() => {
   loadData()
 })
@@ -237,7 +264,19 @@ onMounted(() => {
       <template #header>
         <div class="card-header">
           <span>权限列表</span>
-          <el-button type="primary" :icon="Plus" @click="handleAdd">新增权限</el-button>
+          <div class="header-buttons">
+            <el-button type="primary" :icon="Plus" @click="handleAdd">新增权限</el-button>
+            <el-button type="success" :icon="Download" @click="handleExport">导出</el-button>
+            <el-upload
+              :show-file-list="false"
+              :before-upload="() => false"
+              :on-change="handleImport"
+              accept=".xlsx,.xls"
+            >
+              <el-button type="warning" :icon="Upload" :loading="importLoading">导入</el-button>
+            </el-upload>
+            <el-button :icon="Download" @click="handleDownloadTemplate">下载模板</el-button>
+          </div>
         </div>
       </template>
 
@@ -274,7 +313,9 @@ onMounted(() => {
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
+        <el-table-column prop="createdAt" label="创建时间" width="170">
+          <template #default="{ row }">{{ formatDateTime(row.createdAt) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
             <el-button type="primary" link :icon="Edit" @click="handleEdit(row)">编辑</el-button>
@@ -360,5 +401,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.header-buttons {
+  display: flex;
+  gap: 10px;
 }
 </style>
