@@ -1,0 +1,52 @@
+{
+  "permissions": [
+    {
+      "permissionName": "系统管理",
+      "permissionCode": "SYSTEM",
+      "permissionType": "catalog",
+      "path": "/system",
+      "icon": "Setting",
+      "sortOrder": 100
+    },
+    {
+      "permissionName": "用户管理",
+      "permissionCode": "SYSTEM_USER",
+      "permissionType": "menu",
+      "parentId": null,
+      "path": "/system/users",
+      "component": "views/users/index.vue",
+      "icon": "User",
+      "sortOrder": 101
+    },
+    {
+      "permissionName": "角色管理",
+      "permissionCode": "SYSTEM_ROLE",
+      "permissionType": "menu",
+      "parentId": null,
+      "path": "/system/roles",
+      "component": "views/roles/index.vue",
+      "icon": "UserFilled",
+      "sortOrder": 102
+    },
+    {
+      "permissionName": "权限管理",
+      "permissionCode": "SYSTEM_PERMISSION",
+      "permissionType": "menu",
+      "parentId": null,
+      "path": "/system/permissions",
+      "component": "views/permissions/index.vue",
+      "icon": "Lock",
+      "sortOrder": 103
+    },
+    {
+      "permissionName": "消息管理",
+      "permissionCode": "SYSTEM_MESSAGE",
+      "permissionType": "menu",
+      "parentId": null,
+      "path": "/system/messages",
+      "component": "views/messages/index.vue",
+      "icon": "Message",
+      "sortOrder": 104
+    }
+  ]
+}

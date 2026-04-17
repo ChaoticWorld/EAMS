@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="EAMS.Api/EAMS.Api.csproj" />
+  <Project Path="EAMS.Application/EAMS.Application.csproj" />
+  <Project Path="EAMS.Domain/EAMS.Domain.csproj" />
+  <Project Path="EAMS.Infrastructure/EAMS.Infrastructure.csproj" />
+</Solution>
